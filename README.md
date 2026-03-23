@@ -5,6 +5,7 @@ AI-orchestrated rural resource and market intelligence platform connecting farme
 ## Overview
 
 Krishi Era AI serves as a neutral intelligence layer for the agricultural ecosystem, optimizing resource planning, produce sales, and rural livelihood creation without owning physical assets.
+Deployed link: https://main.d3o65ri2eglx5a.amplifyapp.com/login
 
 ## Features
 
