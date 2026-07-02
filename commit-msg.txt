@@ -1,0 +1,5 @@
+fix: make backend work on Vercel serverless
+
+- Split server.ts into app.ts (pure Express export) and server.ts (local listen)
+- Add api/index.ts as Vercel entry point that exports app without listen()
+- Update vercel.json to point to api/index.ts
