@@ -6,7 +6,10 @@ export class LocalStorageService {
 
   constructor() {
     this.dataDir = path.join(__dirname, '../../data');
-    this.ensureDataDir();
+    // Only try to create the data dir in local/non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      this.ensureDataDir();
+    }
   }
 
   private ensureDataDir() {
@@ -20,13 +23,11 @@ export class LocalStorageService {
   }
 
   private readTable(tableName: string): any[] {
+    if (process.env.NODE_ENV === 'production') return [];
     const filePath = this.getFilePath(tableName);
-    if (!fs.existsSync(filePath)) {
-      return [];
-    }
+    if (!fs.existsSync(filePath)) return [];
     try {
-      const data = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(data);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
     } catch (error) {
       console.error(`Error reading table ${tableName}:`, error);
       return [];
@@ -34,6 +35,9 @@ export class LocalStorageService {
   }
 
   private writeTable(tableName: string, data: any[]): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('LocalStorageService cannot write in production — use USE_POSTGRES=true');
+    }
     const filePath = this.getFilePath(tableName);
     try {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2));

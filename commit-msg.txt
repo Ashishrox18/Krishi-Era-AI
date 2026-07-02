@@ -1,8 +1,7 @@
-fix: crash on Vercel - winston file transports on read-only filesystem
+fix: LocalStorageService mkdir crash on Vercel read-only filesystem
 
-Winston was trying to create logs/error.log and logs/combined.log at
-startup. Vercel's serverless filesystem is read-only so this threw
-immediately before any request was handled.
+The LocalStorageService constructor called ensureDataDir() at module
+load time regardless of which storage backend was configured. On Vercel
+the filesystem is read-only so mkdirSync threw ENOENT immediately.
 
-Fix: only add file transports when NODE_ENV !== production.
-Also simplify api/index.ts to remove dotenv (not needed on Vercel).
+Fix: skip ensureDataDir() and file operations when NODE_ENV=production.
