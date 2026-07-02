@@ -1,14 +1,9 @@
 /**
  * Vercel serverless entry point.
- * Exports the Express app — Vercel handles the server/port itself.
- * The app.listen() in server.ts is only used for local dev.
+ * Just exports the Express app — Vercel manages the HTTP server.
+ * On Vercel, env vars are injected at runtime (no .env file needed).
+ * For local dev, server.ts handles dotenv loading instead.
  */
-import path from 'path';
-import dotenv from 'dotenv';
-
-// Load .env for local dev (no-op on Vercel where env vars are injected)
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
 import app from '../src/app';
 
 export default app;

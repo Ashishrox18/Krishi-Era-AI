@@ -1,5 +1,8 @@
-fix: make backend work on Vercel serverless
+fix: crash on Vercel - winston file transports on read-only filesystem
 
-- Split server.ts into app.ts (pure Express export) and server.ts (local listen)
-- Add api/index.ts as Vercel entry point that exports app without listen()
-- Update vercel.json to point to api/index.ts
+Winston was trying to create logs/error.log and logs/combined.log at
+startup. Vercel's serverless filesystem is read-only so this threw
+immediately before any request was handled.
+
+Fix: only add file transports when NODE_ENV !== production.
+Also simplify api/index.ts to remove dotenv (not needed on Vercel).
