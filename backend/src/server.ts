@@ -23,12 +23,11 @@ import negotiationRoutes from './routes/negotiation.routes';
 import warehousesRoutes from './routes/warehouses.routes';
 import vehiclesRoutes from './routes/vehicles.routes';
 
-// Load environment variables from backend/.env
+// Load environment variables
+// In local dev: loads from backend/.env
+// On Vercel: env vars are injected at build time, dotenv is a no-op
 const envPath = path.resolve(__dirname, '../.env');
-console.log('🔍 Loading .env from:', envPath);
 dotenv.config({ path: envPath });
-console.log('🔍 After dotenv - USE_GROQ:', process.env.USE_GROQ);
-console.log('🔍 After dotenv - GROQ_API_KEY exists:', !!process.env.GROQ_API_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,16 +35,29 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://krishiai.in',
-    'https://www.krishiai.in',
-    'https://main.d3o65ri2eglx5a.amplifyapp.com',
-    'https://feature-deployment.d3o65ri2eglx5a.amplifyapp.com',
-    'https://d3o65ri2eglx5a.amplifyapp.com',
-    'https://d2ah0elagm6okv.cloudfront.net'
-  ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      // Vercel deployment URLs — allow any *.vercel.app subdomain
+      /\.vercel\.app$/,
+      // Custom domain (if any)
+      'https://krishiai.in',
+      'https://www.krishiai.in',
+    ];
+    const isAllowed = allowed.some(pattern =>
+      typeof pattern === 'string' ? pattern === origin : pattern.test(origin)
+    );
+    // Also allow if FRONTEND_URL env var is set (set this on Vercel)
+    const envUrl = process.env.FRONTEND_URL;
+    if (isAllowed || (envUrl && origin === envUrl)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // permissive for now — tighten after deploy
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

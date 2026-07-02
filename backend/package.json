@@ -15,7 +15,8 @@
     "verify-email": "ts-node scripts/verify-email.ts",
     "test:ses": "ts-node scripts/test-ses.ts",
     "test:registration": "ts-node scripts/test-registration.ts",
-    "request-production": "ts-node scripts/request-production-access.ts"
+    "request-production": "ts-node scripts/request-production-access.ts",
+    "seed": "ts-node scripts/seed-users.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.515.0",
@@ -30,6 +31,7 @@
     "@aws-sdk/client-sqs": "^3.515.0",
     "@aws-sdk/lib-dynamodb": "^3.515.0",
     "@aws-sdk/s3-request-presigner": "^3.1000.0",
+    "@types/pg": "^8.20.0",
     "axios": "^1.6.7",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -40,6 +42,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "pg": "^8.22.0",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },

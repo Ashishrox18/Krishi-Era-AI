@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { dynamoDBService } from '../services/aws/dynamodb.service';
-import { sesService } from '../services/aws/ses.service';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-change-in-production';
@@ -43,94 +42,50 @@ export class AuthController {
     try {
       let { phone, email, name, role, password } = req.body;
 
-      // Validate password strength
-      const passwordValidation = this.validatePasswordStrength(password);
-      if (!passwordValidation.valid) {
-        return res.status(400).json({ error: passwordValidation.message });
+      // Validate required fields
+      if (!email || !name || !role || !password) {
+        return res.status(400).json({ error: 'Email, name, role and password are required' });
       }
 
-      // Validate email is provided
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-      }
-
-      // Normalize phone number - add +91 if not present
-      if (phone) {
-        phone = phone.trim();
-        if (!phone.startsWith('+')) {
-          // Remove any leading zeros
-          phone = phone.replace(/^0+/, '');
-          // Add +91 for Indian numbers
-          phone = '+91' + phone;
-        }
-      }
-
-      // Validate phone number format (Indian mobile: +91 followed by 10 digits starting with 6-9)
-      if (!phone || !phone.match(/^\+91[6-9]\d{9}$/)) {
-        return res.status(400).json({ error: 'Invalid phone number. Please enter a valid 10-digit Indian mobile number.' });
-      }
-
-      // Check if email is provided and if user already exists with that email
-      if (email) {
-        const existingUsers = await dynamoDBService.scan(
-          process.env.DYNAMODB_USERS_TABLE!,
-          'email = :email',
-          { ':email': email }
-        );
-
-        if (existingUsers.length > 0) {
-          return res.status(400).json({ error: 'User with this email already exists' });
-        }
-      }
-
-      // Check if phone already exists
-      const existingPhone = await dynamoDBService.scan(
+      // Check if user already exists with that email
+      const existingUsers = await dynamoDBService.scan(
         process.env.DYNAMODB_USERS_TABLE!,
-        'phone = :phone',
-        { ':phone': phone }
+        'email = :email',
+        { ':email': email }
       );
 
-      if (existingPhone.length > 0) {
-        return res.status(400).json({ error: 'User with this phone number already exists' });
+      if (existingUsers.length > 0) {
+        return res.status(400).json({ error: 'User with this email already exists' });
       }
 
-      // Generate 6-digit OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      // Normalize phone (optional in local mode)
+      let normalizedPhone = phone || '';
+      if (normalizedPhone && !normalizedPhone.startsWith('+')) {
+        normalizedPhone = normalizedPhone.replace(/^0+/, '');
+        normalizedPhone = '+91' + normalizedPhone;
+      }
 
-      // Store OTP and user data temporarily (use email as key)
+      // Generate a fixed OTP (123456) for local dev — shown in console
+      const otp = '123456';
+      const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour for ease of dev
+
+      // Store OTP and user data temporarily
       otpStore.set(email, {
         otp,
         expiresAt,
-        userData: { email, name, role, password, phone }
+        userData: { email, name, role, password, phone: normalizedPhone }
       });
 
-      // Send OTP via Email
-      try {
-        await sesService.sendOTP(email, otp);
-        console.log('\n' + '='.repeat(60));
-        console.log('📧 EMAIL OTP VERIFICATION CODE');
-        console.log('='.repeat(60));
-        console.log(`📬 Email: ${email}`);
-        console.log(`🔢 OTP: ${otp}`);
-        console.log(`⏰ Expires in: 10 minutes`);
-        console.log('='.repeat(60) + '\n');
-      } catch (emailError) {
-        console.error('Email sending failed:', emailError);
-        // In development, continue even if email fails
-        console.log('\n' + '='.repeat(60));
-        console.log('📧 EMAIL OTP VERIFICATION CODE (Development Mode)');
-        console.log('='.repeat(60));
-        console.log(`📬 Email: ${email}`);
-        console.log(`🔢 OTP: ${otp}`);
-        console.log(`⏰ Expires in: 10 minutes`);
-        console.log('⚠️  Email sending failed - using console output');
-        console.log('='.repeat(60) + '\n');
-      }
+      console.log('\n' + '='.repeat(60));
+      console.log('📧 REGISTRATION OTP (Local Dev Mode)');
+      console.log('='.repeat(60));
+      console.log(`📬 Email: ${email}`);
+      console.log(`🔢 OTP: ${otp}  ← use this to complete registration`);
+      console.log('='.repeat(60) + '\n');
 
       res.status(200).json({ 
-        message: 'OTP sent successfully to your email',
-        expiresIn: 600 // seconds
+        message: 'OTP ready. In local dev mode, use OTP: 123456',
+        expiresIn: 3600
       });
     } catch (error) {
       console.error('Send OTP error:', error);
@@ -208,12 +163,6 @@ export class AuthController {
     try {
       const { email, password, name, role, phone, profile } = req.body;
 
-      // Validate password strength
-      const passwordValidation = this.validatePasswordStrength(password);
-      if (!passwordValidation.valid) {
-        return res.status(400).json({ error: passwordValidation.message });
-      }
-
       // Check if user exists
       const existingUsers = await dynamoDBService.scan(
         process.env.DYNAMODB_USERS_TABLE!,
@@ -228,16 +177,17 @@ export class AuthController {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create user with extended profile data
+      // Create user
       const user = {
         id: uuidv4(),
         email,
         password: hashedPassword,
         name,
         role,
-        phone,
-        phoneVerified: false, // Not verified in direct registration
-        profile: profile || {}, // Store extended profile data (farm details, bank info, etc.)
+        phone: phone || '',
+        phoneVerified: false,
+        emailVerified: true,
+        profile: profile || {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -256,6 +206,7 @@ export class AuthController {
         token,
       });
     } catch (error) {
+      console.error('Register error:', error);
       res.status(500).json({ error: 'Registration failed' });
     }
   }
@@ -295,6 +246,7 @@ export class AuthController {
         token,
       });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: 'Login failed' });
     }
   }

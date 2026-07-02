@@ -9,45 +9,41 @@ import {
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { localStorageService } from '../local-storage.service';
+import { postgresService } from '../postgres.service';
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION });
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 
+type StorageBackend = 'postgres' | 'local' | 'dynamodb';
+
 export class DynamoDBService {
-  private get useLocalStorage(): boolean {
-    return process.env.USE_LOCAL_STORAGE === 'true';
+  private get backend(): StorageBackend {
+    if (process.env.USE_POSTGRES === 'true') return 'postgres';
+    if (process.env.USE_LOCAL_STORAGE === 'true') return 'local';
+    return 'dynamodb';
   }
 
   async put(tableName: string, item: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.put(tableName, item);
-    }
-    
-    const command = new PutCommand({
-      TableName: tableName,
-      Item: item,
-    });
-    return await docClient.send(command);
+    if (this.backend === 'postgres') return postgresService.put(tableName, item);
+    if (this.backend === 'local')    return localStorageService.put(tableName, item);
+
+    const command = new PutCommand({ TableName: tableName, Item: item });
+    return docClient.send(command);
   }
 
   async get(tableName: string, key: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.get(tableName, key);
-    }
-    
-    const command = new GetCommand({
-      TableName: tableName,
-      Key: key,
-    });
+    if (this.backend === 'postgres') return postgresService.get(tableName, key);
+    if (this.backend === 'local')    return localStorageService.get(tableName, key);
+
+    const command = new GetCommand({ TableName: tableName, Key: key });
     const response = await docClient.send(command);
     return response.Item;
   }
 
   async query(tableName: string, keyConditionExpression: string, expressionAttributeValues: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.query(tableName, keyConditionExpression, expressionAttributeValues);
-    }
-    
+    if (this.backend === 'postgres') return postgresService.query(tableName, keyConditionExpression, expressionAttributeValues);
+    if (this.backend === 'local')    return localStorageService.query(tableName, keyConditionExpression, expressionAttributeValues);
+
     const command = new QueryCommand({
       TableName: tableName,
       KeyConditionExpression: keyConditionExpression,
@@ -58,10 +54,9 @@ export class DynamoDBService {
   }
 
   async update(tableName: string, key: any, updateExpression: string, expressionAttributeValues: any, expressionAttributeNames?: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.update(tableName, key, updateExpression, expressionAttributeValues, expressionAttributeNames);
-    }
-    
+    if (this.backend === 'postgres') return postgresService.update(tableName, key, updateExpression, expressionAttributeValues, expressionAttributeNames);
+    if (this.backend === 'local')    return localStorageService.update(tableName, key, updateExpression, expressionAttributeValues, expressionAttributeNames);
+
     const params: any = {
       TableName: tableName,
       Key: key,
@@ -69,10 +64,7 @@ export class DynamoDBService {
       ExpressionAttributeValues: expressionAttributeValues,
       ReturnValues: 'ALL_NEW',
     };
-
-    if (expressionAttributeNames) {
-      params.ExpressionAttributeNames = expressionAttributeNames;
-    }
+    if (expressionAttributeNames) params.ExpressionAttributeNames = expressionAttributeNames;
 
     const command = new UpdateCommand(params);
     const response = await docClient.send(command);
@@ -80,36 +72,22 @@ export class DynamoDBService {
   }
 
   async delete(tableName: string, key: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.delete(tableName, key);
-    }
-    
-    const command = new DeleteCommand({
-      TableName: tableName,
-      Key: key,
-    });
-    return await docClient.send(command);
+    if (this.backend === 'postgres') return postgresService.delete(tableName, key);
+    if (this.backend === 'local')    return localStorageService.delete(tableName, key);
+
+    const command = new DeleteCommand({ TableName: tableName, Key: key });
+    return docClient.send(command);
   }
 
   async scan(tableName: string, filterExpression?: string, expressionAttributeValues?: any, expressionAttributeNames?: any) {
-    if (this.useLocalStorage) {
-      return await localStorageService.scan(tableName, filterExpression, expressionAttributeValues);
-    }
-    
-    const params: any = {
-      TableName: tableName,
-    };
-    
-    if (filterExpression) {
-      params.FilterExpression = filterExpression;
-    }
-    if (expressionAttributeValues) {
-      params.ExpressionAttributeValues = expressionAttributeValues;
-    }
-    if (expressionAttributeNames) {
-      params.ExpressionAttributeNames = expressionAttributeNames;
-    }
-    
+    if (this.backend === 'postgres') return postgresService.scan(tableName, filterExpression, expressionAttributeValues, expressionAttributeNames);
+    if (this.backend === 'local')    return localStorageService.scan(tableName, filterExpression, expressionAttributeValues, expressionAttributeNames);
+
+    const params: any = { TableName: tableName };
+    if (filterExpression)           params.FilterExpression = filterExpression;
+    if (expressionAttributeValues)  params.ExpressionAttributeValues = expressionAttributeValues;
+    if (expressionAttributeNames)   params.ExpressionAttributeNames = expressionAttributeNames;
+
     const command = new ScanCommand(params);
     const response = await docClient.send(command);
     return response.Items || [];

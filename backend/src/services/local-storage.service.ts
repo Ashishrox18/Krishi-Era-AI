@@ -65,23 +65,47 @@ export class LocalStorageService {
     });
   }
 
-  async scan(tableName: string, filterExpression?: string, expressionAttributeValues?: any) {
+  async scan(tableName: string, filterExpression?: string, expressionAttributeValues?: any, expressionAttributeNames?: any) {
     const data = this.readTable(tableName);
     
     if (!filterExpression) {
       return data;
     }
 
-    // Simple filter implementation for common cases
+    // Resolve attribute name aliases (e.g., #role -> role, #status -> status)
+    const resolveAttrName = (name: string): string => {
+      if (expressionAttributeNames && expressionAttributeNames[name]) {
+        return expressionAttributeNames[name];
+      }
+      return name;
+    };
+
+    // Filter by email
     if (filterExpression.includes('email = :email') && expressionAttributeValues?.[':email']) {
-      return data.filter(item => item.email === expressionAttributeValues[':email']);
+      return data.filter((item: any) => item.email === expressionAttributeValues[':email']);
     }
     
+    // Filter by phone
     if (filterExpression.includes('phone = :phone') && expressionAttributeValues?.[':phone']) {
-      return data.filter(item => item.phone === expressionAttributeValues[':phone']);
+      return data.filter((item: any) => item.phone === expressionAttributeValues[':phone']);
     }
 
-    // Add more filter cases as needed
+    // Filter by userId
+    if (filterExpression.includes('userId = :userId') && expressionAttributeValues?.[':userId']) {
+      return data.filter((item: any) => item.userId === expressionAttributeValues[':userId']);
+    }
+
+    // Filter by farmerId
+    if (filterExpression.includes('farmerId = :farmerId') && expressionAttributeValues?.[':farmerId']) {
+      return data.filter((item: any) => item.farmerId === expressionAttributeValues[':farmerId']);
+    }
+
+    // Filter by role (handles both 'role = :role' and '#role = :role')
+    if ((filterExpression.includes('role = :role') || filterExpression.includes('#role = :role')) && expressionAttributeValues?.[':role']) {
+      return data.filter((item: any) => item.role === expressionAttributeValues[':role']);
+    }
+
+    // Fallback: return all data
     return data;
   }
 
@@ -92,7 +116,7 @@ export class LocalStorageService {
 
   async update(tableName: string, key: any, updateExpression: string, expressionAttributeValues: any, expressionAttributeNames?: any) {
     const data = this.readTable(tableName);
-    const itemIndex = data.findIndex(item => {
+    const itemIndex = data.findIndex((item: any) => {
       return Object.keys(key).every(k => item[k] === key[k]);
     });
 
@@ -100,12 +124,36 @@ export class LocalStorageService {
       throw new Error('Item not found');
     }
 
-    // Simple update implementation - just merge the values
-    const item = data[itemIndex];
-    Object.keys(expressionAttributeValues).forEach(key => {
-      const attrName = key.replace(':', '');
-      item[attrName] = expressionAttributeValues[key];
-    });
+    const item = { ...data[itemIndex] };
+
+    // Parse SET expression: "SET field1 = :val1, field2 = :val2"
+    const setMatch = updateExpression.match(/SET (.+)/i);
+    if (setMatch) {
+      const assignments = setMatch[1].split(',').map((s: string) => s.trim());
+      for (const assignment of assignments) {
+        const eqIdx = assignment.indexOf('=');
+        if (eqIdx === -1) continue;
+        let fieldPart = assignment.substring(0, eqIdx).trim();
+        const valuePart = assignment.substring(eqIdx + 1).trim();
+
+        // Resolve attribute name alias
+        if (expressionAttributeNames && expressionAttributeNames[fieldPart]) {
+          fieldPart = expressionAttributeNames[fieldPart];
+        }
+
+        // Get value
+        const value = expressionAttributeValues[valuePart];
+        if (value !== undefined) {
+          item[fieldPart] = value;
+        }
+      }
+    } else {
+      // Fallback: merge all expression attribute values
+      Object.keys(expressionAttributeValues).forEach(key => {
+        const attrName = key.replace(':', '');
+        item[attrName] = expressionAttributeValues[key];
+      });
+    }
 
     item.updatedAt = new Date().toISOString();
     data[itemIndex] = item;

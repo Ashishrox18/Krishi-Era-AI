@@ -84,8 +84,8 @@ export default function Login() {
     setError('');
     
     // Validate required fields
-    if (!formData.name || !formData.email || !formData.password || !formData.phone) {
-      setError('Please fill all required fields');
+    if (!formData.name || !formData.email || !formData.password) {
+      setError('Please fill all required fields (name, email, password)');
       return;
     }
 
@@ -96,25 +96,13 @@ export default function Login() {
       return;
     }
 
-    // Validate password strength
-    if (passwordStrength.score < 3) {
-      setError('Password is too weak. Please use at least 8 characters with uppercase, lowercase, and numbers.');
-      return;
-    }
-
     // Normalize phone number - add +91 if not present
     let normalizedPhone = formData.phone.trim();
-    if (!normalizedPhone.startsWith('+')) {
-      // Remove any leading zeros
-      normalizedPhone = normalizedPhone.replace(/^0+/, '');
-      // Add +91 for Indian numbers
-      normalizedPhone = '+91' + normalizedPhone;
-    }
-
-    // Validate phone number format (10 digits for India)
-    if (!normalizedPhone.match(/^\+91[6-9]\d{9}$/)) {
-      setError('Please enter a valid 10-digit Indian mobile number');
-      return;
+    if (normalizedPhone) {
+      if (!normalizedPhone.startsWith('+')) {
+        normalizedPhone = normalizedPhone.replace(/^0+/, '');
+        normalizedPhone = '+91' + normalizedPhone;
+      }
     }
 
     setLoading(true);
@@ -293,22 +281,20 @@ export default function Login() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number <span className="text-red-500">*</span>
+                  Phone Number <span className="text-gray-400 text-xs">(optional)</span>
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="tel"
-                    required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="9876543210"
                     maxLength={10}
-                    pattern="[6-9][0-9]{9}"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Enter 10-digit mobile number (country code +91 will be added automatically)</p>
+                <p className="text-xs text-gray-500 mt-1">Enter 10-digit mobile number (optional)</p>
               </div>
 
               <div>
@@ -460,17 +446,18 @@ export default function Login() {
 
         {isLogin && (
           <div className="mt-6 p-4 bg-blue-50 rounded-md">
-            <p className="text-sm text-gray-600 mb-2">Test Account:</p>
-            <p className="text-xs text-gray-500">Email: test@example.com</p>
-            <p className="text-xs text-gray-500">Password: password123</p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Demo Accounts:</p>
+            <p className="text-xs text-gray-600">🌾 Farmer: farmer@gmail.com / 123456</p>
+            <p className="text-xs text-gray-600">🛒 Buyer: buyer@gmail.com / 123456</p>
+            <p className="text-xs text-gray-600">🚛 Transporter: transporter@gmail.com / 123456</p>
+            <p className="text-xs text-gray-600">🏭 Storage: storage@gmail.com / 123456</p>
           </div>
         )}
 
-        {!isLogin && !showOTPInput && (
-          <div className="mt-4 p-3 bg-yellow-50 rounded-md border border-yellow-200">
-            <p className="text-xs text-yellow-800">
-              <Shield className="h-3 w-3 inline mr-1" />
-              Your email will be verified via OTP for security
+        {!isLogin && showOTPInput && (
+          <div className="mt-4 p-3 bg-green-50 rounded-md border border-green-200">
+            <p className="text-xs text-green-800 font-medium">
+              💡 Local Dev Mode: Use OTP <strong>123456</strong> to complete registration
             </p>
           </div>
         )}

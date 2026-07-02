@@ -1,8 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { dynamoDBService } from '../services/aws/dynamodb.service';
-import { bedrockService } from '../services/aws/bedrock.service';
-import { snsService } from '../services/aws/sns.service';
+import { groqService } from '../services/ai/groq.service';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationsController } from './notifications.controller';
 
@@ -49,31 +48,15 @@ export class FarmerController {
     try {
       const { soilType, landSize, location, waterAvailability, budget, season } = req.body;
 
-      let recommendations;
-      
-      // Use Amazon Bedrock AI
-      if (bedrockService.isEnabled()) {
-        console.log('Using Amazon Bedrock for crop recommendations');
-        recommendations = await bedrockService.getCropRecommendations({
-          soilType,
-          landSize,
-          location,
-          waterAvailability,
-          budget,
-          season,
-        });
-      } else {
-        // Use fallback recommendations
-        console.log('Using fallback recommendations (Bedrock not configured)');
-        recommendations = await bedrockService.getCropRecommendations({
-          soilType,
-          landSize,
-          location,
-          waterAvailability,
-          budget,
-          season,
-        });
-      }
+      console.log('Using Groq AI for crop recommendations');
+      const recommendations = await groqService.getCropRecommendations({
+        soilType,
+        landSize,
+        location,
+        waterAvailability,
+        budget,
+        season,
+      });
 
       res.json(recommendations);
     } catch (error) {
@@ -272,11 +255,12 @@ export class FarmerController {
       const currentConditions = { temperature: 28, humidity: 65, rainfall: 0 };
       const marketPrices = { current: 22000, trend: 'rising' };
 
-      const recommendation = await bedrockService.generateHarvestRecommendation({
+      const recommendation = await groqService.getSellingStrategy({
         cropType: crop.name,
-        plantingDate: crop.plantingDate,
-        currentConditions,
-        marketPrices,
+        expectedYield: crop.expectedYield || 100,
+        yieldUnit: crop.yieldUnit || 'kg',
+        harvestMonth: new Date().toLocaleString('default', { month: 'long' }),
+        storageAvailable: false,
       });
 
       res.json({ recommendation });
